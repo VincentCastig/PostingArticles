@@ -115,19 +115,11 @@ app.get('/auth/logout', (req, res) => {
 
 
 
-app.post('/api/exercise', current_exercises_controller.create)
+app.post('/api/article', current_exercises_controller.create)
 app.get('/api/exercises', current_exercises_controller.getAll)
 app.get('/api/exercise/:id', current_exercises_controller.getOne)
-app.get('/api/lastexercise', current_exercises_controller.getLast)
-app.put('/api/exercise/:id', current_exercises_controller.update)
 app.delete('/api/exercise/:id', current_exercises_controller.delete)
 
-//post exercise goal on registration
-app.post('/api/goal', goal_exercises_controller.create)
-app.get('/api/goals', goal_exercises_controller.getAll)
-app.get('/api/goal/:id', goal_exercises_controller.getOne)
-app.put('/api/goal/:id', goal_exercises_controller.update)
-app.delete('/api/goal/:id', goal_exercises_controller.delete)
 
 //register user
 app.post('/api/user', user_controller.create)
