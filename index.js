@@ -1,132 +1,78 @@
-const dotenv = require('dotenv').config()
-const express = require('express')
-const session = require('express-session')
-const passport = require('passport')
-const Auth0Strategy = require('passport-auth0')
-const bodyParser = require('body-parser')
-const massive = require('massive')
+
+const nodemailer = require('nodemailer');
+
+const dotenv = require('dotenv').config();
+const express = require('express');
+const { json } = require('body-parser');
 const cors = require('cors');
-const port = 3000
-const current_exercises_controller = require('./current_exercises_controller')
-const goal_exercises_controller = require('./goal_exercises_controller')
-const user_controller = require('./user_controller')
+const massive = require('massive');
 const path = require('path');
+const port = 3000
 
+const userCtrl = require('./public/controllers/userController');
 
-const app = module.exports = express()
+const app = module.exports = express();
+app.use(json());
+app.use(cors());
 
-
-app.use(bodyParser.json());
-app.use(cors() )
-app.use(session({
-  resave: true, //Without this you get a constant warning about default values
-  saveUninitialized: true, //Without this you get a constant warning about default values
-  secret: process.env.secret
-}));
-app.use(passport.initialize());
-app.use(passport.session());
+const connectionString = process.env.DATABASE_URL; //Connects to heroku bro
 app.use(express.static(path.join(__dirname, 'public')));
+console.log('connetion', connectionString)
+massive(connectionString).then(db => {app.set('db', db)});
 
-//massive(config.massiveConnectionString).then( db => {app.set("db", db)});
 
-const massiveConnectionString = process.env.DATABASE_URL
-
-massive(massiveConnectionString).then( db => {app.set("db", db)});
-// db.create_user(function(err, user) {
-//   if (err) console.log(err);
-//   else console.log('CREATED USER');
-//   console.log(user);
-// })
-passport.use(new Auth0Strategy({
-   domain:       process.env.domain,
-   clientID:     process.env.clientID,
-   clientSecret: process.env.clientSecret,
-   callbackURL:  '/auth/callback'
- },
-  function(accessToken, refreshToken, extraParams, profile, done) {
-    //Find user in database
-    const db = app.get('db')
-    const user_id = profile.identities[0].user_id.toString()
-
-    db.getUserByAuthId([user_id]).then((user) => {
-      console.log("user", user.length)
-      console.log("the user", user)
-      if (user.length < 1) { //if there isn't one, we'll create one!
-        console.log('CREATING USER', profile);
-        
-        db.createUserByAuth([ profile.nickname, user_id]).then((user) => {
-          console.log('USER CREATED user[0]', user[0]);
-          console.log('USER CREATED user', user_id);
-          return done(null, user[0]); // GOES TO SERIALIZE USER
-        })
+const transporter = nodemailer.createTransport({
+    service: 'Gmail',
+    auth: {
+        type: 'OAuth2',
+        user: process.env.user,
+        refreshToken: process.env.refreshToken,
+        accessToken: process.env.accessToken,
+        clientId: process.env.clientId,
+        clientSecret: process.env.clientSecret
+    }
+  });
+  
+  
+   const send = ({ email, name, text }) => {
+       console.log('sending', email, name, text)
+    const from = name && email ? `${name} <${email}>` : `${name || email}`
+    const message = {
+      from,
+      to: 'vincent.castig@gmail.com',
+      subject: `New message from ${from} at creating-contact-forms-with-nodemailer-and-react`,
+      text,
+      replyTo: from
+    };
+  
+    return new Promise((resolve, reject) => {
+      transporter.sendMail(message, (error, info) => {
+        console.log(message)
+        console.log(info)
+        console.log(error)
+        return error ? reject(error) : resolve(info)
       }
-      else { //when we find the user, return it
-        console.log('FOUND USER', user[0]);
-        console.log('FOUND USER', user);
-        return done(null, user);
-      }
-    }).catch(err => console.log(err));
+      )
+    })
   }
-));
-
-//THIS IS INVOKED ONE TIME TO SET THINGS UP
-passport.serializeUser((userA, done) => {
-  console.log('serializing', userA);
-  let userB = userA;
-  //Things you might do here :
-   //Serialize just the id, get other information to add to session,
-  done(null, userB); //PUTS 'USER' ON THE SESSION
-});
-
-//USER COMES FROM SESSION - THIS IS INVOKED FOR EVERY ENDPOINT
-passport.deserializeUser((userB, done) => {
-  let userC = userB;
-  //Things you might do here :
-    // Query the database with the user id, get other information to put on req.user
-  done(null, userC); //PUTS 'USER' ON REQ.USER
-});
 
 
+app.post('/postArticle', userCtrl.post_article);
+app.get('/getAllArticles', userCtrl.get_all_articles);
+app.get('/getArticle/:id', userCtrl.get_article);
 
-app.get('/auth', passport.authenticate('auth0'));
-
-app.get('/auth/callback',
-  passport.authenticate('auth0', {successRedirect: '/#!/basic'}), function(req, res) {
-    res.status(200).send(req.user);
-})
-
-app.get('/auth/me', (req, res) => {
-  console.log(req.user)
-  if (!req.user) return res.sendStatus(404);
-  //THIS IS WHATEVER VALUE WE GOT FROM userC variable above.
-  res.status(200).send(req.user);
-})
-
-app.get('/auth/logout', (req, res) => {
-  console.log('logging out?:' )
-  req.logout();
-  res.redirect('http://vincentcastig.auth0.com/v2/logout');
-  //
-  // http://vincentcastig.auth0.com/v2/logout
-  // https://YOUR_AUTH0_DOMAIN/v2/logout
-})
-
-//app.use means we are using some middleware
+app.post('/email', (req, res) => {
+    const { email , name,  message } = req.body
+    console.log(name);
+    send({ email, name, text: message }).then(() => {
+      console.log(`Sent the message "${message}" from <${name}> ${email}.`);
+      res.redirect('/#success');
+    }).catch((error) => {
+      console.log(`Failed to send the message "${message}" from <${name}> ${email} with the error ${error && error.message}`);
+      res.redirect('/#error');
+    })
+  })
 
 
 
-app.post('/api/article', current_exercises_controller.create)
-app.get('/api/exercises', current_exercises_controller.getAll)
-app.get('/api/exercise/:id', current_exercises_controller.getOne)
-app.delete('/api/exercise/:id', current_exercises_controller.delete)
-
-
-//register user
-app.post('/api/user', user_controller.create)
-app.get('/api/users', user_controller.getAll)
-//login user and find user by username
-app.get('/api/user/:username/:password', user_controller.getUser)
-
-app.listen(process.env.PORT, () => {
-  console.log(`Hey dude, I'm listening`)
-})
+app.listen(process.env.PORT, () => { console.log(`Listening on port: 3000`)});

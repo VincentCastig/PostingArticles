@@ -16,5 +16,14 @@
   "bugs": {
     "url": "https://github.com/VincentCastig/PostingArticles/issues"
   },
-  "homepage": "https://github.com/VincentCastig/PostingArticles#readme"
+  "homepage": "https://github.com/VincentCastig/PostingArticles#readme",
+  "dependencies": {
+    "body-parser": "^1.18.2",
+    "cors": "^2.8.4",
+    "dotenv": "^4.0.0",
+    "express": "^4.16.2",
+    "massive": "^4.6.3",
+    "nodemailer": "^4.4.1",
+    "path": "^0.12.7"
+  }
 }
